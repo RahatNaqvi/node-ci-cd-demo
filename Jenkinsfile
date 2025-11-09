@@ -2,35 +2,51 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER = credentials('docker-hub-creds')
-        DOCKER_PASS = credentials('docker-hub-creds')
+        APP_NAME   = "node-ci-cd-demo"
+        IMAGE_NAME = "rahatnaqvi/${APP_NAME}"
+        IMAGE_TAG  = "latest"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/RahatNaqvi/node-ci-cd-demo',
-                    credentialsId: 'github-creds'
+                git branch: 'main', url: 'https://github.com/RahatNaqvi/node-ci-cd-demo.git'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'npm test || true'  // Remove "|| true" to fail pipeline on test failure
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh 'docker build -t rahatnaqvi/node-ci-cd-demo:latest .'
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-cred', 
+                    usernameVariable: 'DOCKER_USER', 
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
                 }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                script {
-                    sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push rahatnaqvi/node-ci-cd-demo:latest
-                    '''
-                }
+                sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
 
@@ -50,6 +66,15 @@ pipeline {
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline completed successfully!"
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs."
         }
     }
 }
