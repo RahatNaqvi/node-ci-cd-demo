@@ -1,63 +1,47 @@
 pipeline {
     agent any
-
     environment {
-        DOCKER_IMAGE = "rahatnaqvi/node-ci-cd-demo:latest"
+        DOCKER_USER = credentials('docker-username')
+        DOCKER_PASS = credentials('docker-password')
     }
-
     stages {
-
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                git(
+                git branch: 'main',
                     url: 'https://github.com/RahatNaqvi/node-ci-cd-demo',
-                    branch: 'main',
-                    credentialsId: 'github-creds' // your GitHub credentials in Jenkins
-                )
+                    credentialsId: 'github-creds'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE} ."
+                script {
+                    sh 'docker build -t rahatnaqvi/node-ci-cd-demo:latest .'
+                }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker-hub-creds', 
-                    usernameVariable: 'DOCKER_USER', 
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
+                script {
                     sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push ${DOCKER_IMAGE}
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    docker push rahatnaqvi/node-ci-cd-demo:latest
                     '''
                 }
             }
         }
-	stage('Deploy to Kubernetes') {
- 	   steps {
-        // Use the secret kubeconfig file
-        withKubeConfig([credentialsId: 'kubeconfig-file']) {
-            sh '''
-		kubectl apply -f deployment/deployment.yaml
-                kubectl apply -f deployment/service.yaml                
-                kubectl get pods -A
-            '''
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withKubeConfig([credentialsId: 'minikube-kubeconfig']) {
+                    sh '''
+                    kubectl apply -f delpoyment/deployment.yaml
+                    kubectl apply -f deployment/service.yaml
+                    kubectl get pods -A
+                    '''
+                }
+            }
         }
-    }
-}
-    post {
-        always {
-            echo 'Pipeline finished.'
-        }
-        success {
-            echo 'Deployment succeeded!'
-        }
-        failure {
-            echo 'Deployment failed. Check logs above.'
-        }
-    }
-}
+    } // end stages
+} // end pipeline
