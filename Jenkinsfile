@@ -1,11 +1,11 @@
 pipeline {
     agent any
+    
     environment {
-        DOCKER_USER = credentials('docker-username-id')
-        DOCKER_PASS = credentials('docker-password-id')
         IMAGE_NAME = 'rahatnaqvi/node-ci-cd-demo'
         IMAGE_TAG = 'latest'
     }
+    
     stages {
         stage('Checkout') {
             steps {
@@ -38,10 +38,10 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'docker-hub-credentials-id', 
-                    usernameVariable: 'USER', 
-                    passwordVariable: 'PASS'
+                    usernameVariable: 'DOCKER_USER', 
+                    passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh 'echo $PASS | docker login -u $USER --password-stdin'
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
                 }
             }
         }
@@ -63,10 +63,10 @@ pipeline {
                         ls -la deployment/
                         
                         echo "📄 Content of deployment.yaml:"
-                        cat deployment/deployment.yaml || echo "⚠️ deployment.yaml not found"
+                        cat deployment/deployment.yaml
                         
                         echo "📄 Content of service.yaml:"
-                        cat deployment/service.yaml || echo "⚠️ service.yaml not found"
+                        cat deployment/service.yaml
                         
                         echo "🔍 Validating Kubernetes manifests..."
                         kubectl apply -f deployment/ --dry-run=client
@@ -87,6 +87,12 @@ pipeline {
                 }
             }
         }
+        
+        stage('Cleanup') {
+            steps {
+                sh 'docker logout || true'
+            }
+        }
     }
     
     post {
@@ -95,9 +101,6 @@ pipeline {
         }
         failure {
             echo "❌ Pipeline failed. Check logs for details."
-        }
-        always {
-            sh 'docker logout || true'
         }
     }
 }
