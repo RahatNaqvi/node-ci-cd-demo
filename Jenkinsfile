@@ -9,40 +9,55 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                checkout scm
+                git(
+                    url: 'https://github.com/RahatNaqvi/node-ci-cd-demo',
+                    branch: 'main',
+                    credentialsId: 'github-creds' // your GitHub credentials in Jenkins
+                )
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh "docker build -t ${DOCKER_IMAGE} ."
-                }
+                sh "docker build -t ${DOCKER_IMAGE} ."
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker push ${DOCKER_IMAGE}
-                    """
-                }
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                // 👇 Use your kubeconfig secret file here
-                withKubeConfig([credentialsId: 'kubeconfig-file']) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-creds', 
+                    usernameVariable: 'DOCKER_USER', 
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh '''
-                    kubectl apply -f k8s/deployment.yaml
-                    kubectl apply -f k8s/service.yaml
-                    kubectl get pods -A
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push ${DOCKER_IMAGE}
                     '''
                 }
             }
+        }
+	stage('Deploy to Kubernetes') {
+ 	   steps {
+        // Use the secret kubeconfig file
+        withKubeConfig([credentialsId: 'kubeconfig-file']) {
+            sh '''
+		kubectl apply -f deployment/deployment.yaml
+                kubectl apply -f deployment/service.yaml                
+                kubectl get pods -A
+            '''
+        }
+    }
+}
+    post {
+        always {
+            echo 'Pipeline finished.'
+        }
+        success {
+            echo 'Deployment succeeded!'
+        }
+        failure {
+            echo 'Deployment failed. Check logs above.'
         }
     }
 }
