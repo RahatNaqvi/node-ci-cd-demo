@@ -1,10 +1,12 @@
 pipeline {
     agent any
+
     environment {
-	DOCKER_USER = credentials('docker-hub-creds')
-	DOCKER_PASS = credentials('docker-hub-creds')
+        DOCKER_IMAGE = "rahatnaqvi/node-ci-cd-demo:latest"
     }
+
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -16,17 +18,21 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh 'docker build -t rahatnaqvi/node-ci-cd-demo:latest .'
+                    sh 'docker build -t ${DOCKER_IMAGE} .'
                 }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                script {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker push rahatnaqvi/node-ci-cd-demo:latest
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push ${DOCKER_IMAGE}
                     '''
                 }
             }
@@ -36,9 +42,9 @@ pipeline {
             steps {
                 withKubeConfig([credentialsId: 'minikube-kubeconfig']) {
                     sh '''
-                    kubectl apply -f delpoyment/deployment.yaml
-                    kubectl apply -f deployment/service.yaml
-                    kubectl get pods -A
+                        kubectl apply -f deployment/deployment.yaml
+                        kubectl apply -f deployment/service.yaml
+                        kubectl get pods -A
                     '''
                 }
             }
