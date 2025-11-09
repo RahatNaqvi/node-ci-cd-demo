@@ -3,9 +3,6 @@ pipeline {
     environment {
 	DOCKER_USER = credentials('docker-hub-creds')
 	DOCKER_PASS = credentials('docker-hub-creds')
-}
-
-        DOCKER_PASS = credentials('docker-password')
     }
     stages {
         stage('Checkout') {
